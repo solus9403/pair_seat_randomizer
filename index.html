@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>짝 & 자리 랜덤 배정기</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Gaegu:wght@400;700&family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box}
+  :root{
+    --board:#173a30; --board-deep:#0f2a22; --board-tile:#20493c; --board-tile-hi:#2a5a49;
+    --chalk:#f4f0e2; --chalk-dim:#cfd8ce;
+    --chalk-yellow:#f2c14e; --chalk-blue:#8fd0e0; --chalk-pink:#e79b8d;
+    --wood:#8a5a34; --wood-dark:#5e3c22; --wood-light:#a97644;
+    --paper:#f3ead4; --paper-2:#eadfc2; --paper-line:#c9a86b;
+    --ink:#2c241a; --ink-dim:#6b5d47;
+    --shadow-lg:0 20px 50px rgba(15,25,20,.35);
+  }
+  html{-webkit-tap-highlight-color:transparent}
+  body{
+    margin:0;
+    font-family:'Noto Sans KR',system-ui,sans-serif;
+    color:var(--ink);
+    min-height:100vh;
+    background:
+      radial-gradient(ellipse at 15% 0%, #fbf5e4 0%, transparent 55%),
+      radial-gradient(ellipse at 85% 100%, #f6ecd2 0%, transparent 55%),
+      var(--paper);
+  }
+  .app{max-width:1180px;margin:0 auto;padding:34px 20px 56px}
+
+  /* ---------- 헤더 ---------- */
+  header{margin-bottom:26px}
+  .sign{
+    display:inline-block;background:var(--wood);color:var(--chalk);
+    padding:16px 26px 14px;border-radius:10px;
+    box-shadow:0 10px 0 var(--wood-dark), 0 16px 30px rgba(60,40,20,.25);
+    transform:rotate(-.6deg);
+  }
+  h1{
+    margin:0;font-family:'Gaegu',cursive;font-weight:700;
+    font-size:clamp(28px,4.6vw,42px);letter-spacing:.5px;line-height:1.15;
+  }
+  .subtitle{margin:4px 0 0;color:#e7ddc4;font-size:14.5px;font-weight:500}
+
+  /* ---------- 툴바 (나무 선반) ---------- */
+  .toolbar{
+    background:linear-gradient(180deg,var(--wood-light),var(--wood));
+    border-radius:16px;padding:14px 16px;
+    box-shadow:0 8px 0 var(--wood-dark), 0 16px 28px rgba(60,40,20,.2);
+    display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:26px;
+  }
+  .countbox{
+    display:flex;align-items:baseline;gap:6px;padding:9px 14px;
+    background:rgba(255,255,255,.14);border-radius:999px;color:var(--chalk);
+    font-weight:700;font-size:14px;
+  }
+  .countbox b{font-family:'Gaegu',cursive;font-size:19px}
+  input,button,textarea{font:inherit}
+  button{
+    border:0;border-radius:999px;padding:11px 18px;font-weight:700;cursor:pointer;
+    transition:.15s transform,.15s box-shadow,.15s background,.15s opacity;
+    font-size:14.5px;
+  }
+  button:hover{transform:translateY(-2px)}
+  button:active{transform:translateY(0)}
+  button:disabled{opacity:.5;cursor:not-allowed;transform:none}
+  .chalk-btn{background:rgba(255,255,255,.92);color:var(--ink);box-shadow:0 3px 0 rgba(0,0,0,.15)}
+  .chalk-btn.primary{background:var(--chalk-yellow);color:#4a3410;box-shadow:0 3px 0 #b98d2c}
+  .chalk-btn.ghost{background:rgba(255,255,255,.14);color:var(--chalk);box-shadow:none}
+  .chalk-btn.ghost:hover{background:rgba(255,255,255,.22)}
+  .settings-btn{margin-left:auto}
+
+  /* ---------- 칠판 (핵심 무대) ---------- */
+  .board{
+    position:relative;
+    background:
+      radial-gradient(ellipse at 30% 0%, rgba(255,255,255,.05), transparent 60%),
+      radial-gradient(circle at 80% 90%, rgba(255,255,255,.04), transparent 45%),
+      linear-gradient(160deg,var(--board),var(--board-deep));
+    border-radius:18px;
+    padding:36px 32px 44px;
+    box-shadow:
+      inset 0 0 0 9px var(--wood),
+      inset 0 0 0 13px var(--wood-dark),
+      var(--shadow-lg);
+    min-height:420px;
+  }
+  .board::after{
+    content:"";position:absolute;left:26px;right:26px;bottom:-14px;height:22px;
+    background:linear-gradient(180deg,var(--wood-light),var(--wood-dark));
+    border-radius:0 0 8px 8px;box-shadow:0 8px 14px rgba(20,15,8,.3);
+  }
+  .board::before{
+    content:"";position:absolute;left:50px;bottom:-8px;width:16px;height:6px;
+    background:var(--chalk);border-radius:3px;
+    box-shadow:26px 1px 0 var(--chalk-yellow), 52px -1px 0 var(--chalk-pink);
+  }
+  .board-title{display:flex;justify-content:space-between;align-items:flex-end;gap:14px;margin-bottom:22px;flex-wrap:wrap}
+  .board-title h2{margin:0;font-family:'Gaegu',cursive;color:var(--chalk);font-size:26px;font-weight:700}
+  .status{color:var(--chalk-dim);font-size:13.5px;font-weight:500}
+
+  .seat-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:14px}
+
+  .flip-tile{
+    perspective:500px;height:80px;border-radius:12px;
+    background:linear-gradient(180deg,var(--board-tile-hi),var(--board-tile));
+    box-shadow:inset 0 0 0 1px rgba(255,255,255,.06), 0 4px 10px rgba(0,0,0,.25);
+    display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;
+  }
+  .flip-tile::after{
+    content:"";position:absolute;left:0;right:0;top:50%;height:1px;background:rgba(0,0,0,.25);
+  }
+  .flip-inner{transform-style:preserve-3d;transition:transform .05s linear}
+  .flip-tile.spinning .flip-inner{animation:flipSpin .13s linear infinite}
+  @keyframes flipSpin{0%{transform:rotateX(0)}50%{transform:rotateX(-90deg)}100%{transform:rotateX(0)}}
+  .flip-num{
+    font-family:'Gaegu',cursive;font-weight:700;color:var(--chalk-yellow);
+    font-size:28px;line-height:1;
+  }
+  .flip-name{
+    position:absolute;bottom:6px;left:0;right:0;text-align:center;
+    font-size:10.5px;color:var(--chalk-dim);font-weight:500;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 8px;
+  }
+  .flip-tile.settled{animation:settleBounce .4s ease}
+  @keyframes settleBounce{0%{transform:scale(.9)}55%{transform:scale(1.05)}100%{transform:scale(1)}}
+  .flip-tile.settled .flip-num{text-shadow:0 0 14px rgba(242,193,78,.7)}
+
+  .dust{position:absolute;border-radius:50%;pointer-events:none;width:5px;height:5px;background:var(--chalk);opacity:.9}
+  @keyframes dustFly{to{transform:translate(var(--dx),var(--dy)) scale(.2);opacity:0}}
+
+  .empty-board{
+    grid-column:1/-1;text-align:center;color:var(--chalk-dim);padding:70px 14px;
+    font-family:'Gaegu',cursive;font-size:19px;line-height:1.7;
+  }
+  .empty-board .doodle{font-size:38px;display:block;margin-bottom:10px}
+
+  .pairs-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+  .pair-tile{
+    background:linear-gradient(180deg,var(--board-tile-hi),var(--board-tile));
+    border-radius:14px;padding:14px 10px;
+    box-shadow:inset 0 0 0 1px rgba(255,255,255,.06), 0 4px 10px rgba(0,0,0,.25);
+    display:flex;align-items:center;justify-content:center;gap:10px;
+  }
+  .pair-tile .flip-tile{height:60px;width:64px;flex-shrink:0}
+  .pair-tile .flip-num{font-size:22px}
+  .pair-link{
+    width:0;height:2px;flex-shrink:0;
+    background-image:linear-gradient(90deg,var(--chalk-dim) 55%,transparent 45%);
+    background-size:9px 2px;opacity:0;
+    transition:width .35s ease, opacity .35s ease;
+  }
+  .pair-tile.linked .pair-link{width:22px;opacity:.8}
+
+  .odd-banner{
+    grid-column:1/-1;margin-top:16px;text-align:center;
+    background:rgba(242,193,78,.14);border:1.5px dashed var(--chalk-yellow);
+    border-radius:12px;padding:13px;color:var(--chalk);font-weight:600;font-size:14px;
+  }
+
+  /* ---------- 설정(노트 종이) 모달 ---------- */
+  .panel{position:fixed;inset:0;background:rgba(20,26,20,.5);display:none;align-items:center;justify-content:center;padding:20px;z-index:10}
+  .panel.open{display:flex}
+  .modal{
+    width:min(760px,100%);max-height:88vh;overflow:auto;border-radius:6px 16px 16px 6px;
+    padding:26px 26px 26px 46px;position:relative;
+    background:
+      repeating-linear-gradient(var(--paper) 0 31px, var(--paper-line) 31px 32px);
+    background-color:var(--paper);
+    box-shadow:0 25px 70px rgba(0,0,0,.3);
+  }
+  .modal::before{content:"";position:absolute;left:30px;top:0;bottom:0;width:2px;background:#c96a5c;opacity:.55}
+  .modal-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+  .modal h2{margin:0;font-family:'Gaegu',cursive;font-size:26px;color:var(--ink)}
+  .close{background:var(--wood);color:var(--chalk);padding:8px 14px;border-radius:999px}
+  .help{color:var(--ink-dim);font-size:13.5px;margin:0 0 16px;line-height:1.6}
+  .section-title{
+    font-family:'Gaegu',cursive;font-size:17px;font-weight:700;color:#7a4a2c;
+    margin:20px 0 8px;
+  }
+  .section-title:first-of-type{margin-top:4px}
+  .inline-form{display:flex;gap:8px;flex-wrap:wrap;align-items:center;background:rgba(255,255,255,.55);border:1px solid var(--paper-line);border-radius:12px;padding:12px}
+  .inline-form input[type=number]{width:88px;border:1px solid var(--paper-line);border-radius:8px;padding:9px;text-align:center;background:#fff}
+  .inline-form .sep{color:var(--ink-dim);font-weight:700;font-size:13px}
+  .roster-count{font-size:13px;color:var(--ink-dim);margin-bottom:10px}
+  .student-list{display:flex;flex-direction:column;gap:8px}
+  .edit-row{display:flex;align-items:center;gap:9px}
+  .num{
+    width:56px;text-align:center;font-family:'Gaegu',cursive;font-weight:700;
+    background:#fff;border:1px solid var(--paper-line);border-radius:8px;padding:7px 0;flex-shrink:0;color:#7a4a2c;
+  }
+  .edit-row input{flex:1;border:1px solid var(--paper-line);border-radius:9px;padding:10px 11px;outline:none;min-width:0;background:#fff}
+  .edit-row input:focus{border-color:#a97644;box-shadow:0 0 0 3px rgba(169,118,68,.18)}
+  .row-del{flex-shrink:0;background:#f4dcd6;color:#a8402f;padding:9px 12px;border-radius:9px;font-weight:700;font-size:13px}
+  .modal-actions{display:flex;justify-content:space-between;gap:9px;margin-top:22px}
+  .modal-actions .right{display:flex;gap:9px}
+  .btn-primary{background:var(--wood);color:var(--chalk);box-shadow:0 3px 0 var(--wood-dark)}
+  .btn-neutral{background:#e7dcc0;color:var(--ink)}
+  .btn-danger{background:#f4dcd6;color:#a8402f}
+
+  .toast{
+    position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(30px);
+    background:var(--ink);color:var(--chalk);padding:12px 20px;border-radius:999px;
+    opacity:0;pointer-events:none;transition:.25s;z-index:20;font-weight:600;
+    max-width:90vw;text-align:center;font-size:14px;
+  }
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+  @media(max-width:800px){.seat-grid{grid-template-columns:repeat(4,1fr)}.pairs-grid{grid-template-columns:1fr 1fr}}
+  @media(max-width:540px){
+    .app{padding:22px 14px 40px}
+    .toolbar{padding:12px}.settings-btn{margin-left:0}
+    .seat-grid{grid-template-columns:repeat(3,1fr);gap:9px}
+    .flip-tile{height:66px}.flip-num{font-size:21px}
+    .pairs-grid{grid-template-columns:1fr}
+    .board{padding:24px 16px 34px}
+    .modal{padding:22px 18px 22px 34px}
+    .modal-actions{flex-direction:column-reverse;align-items:stretch}
+    .modal-actions .right{justify-content:stretch}
+    .modal-actions .right button{flex:1}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="sign">
+      <h1>짝 & 자리 랜덤 배정기</h1>
+      <p class="subtitle">칠판 위에서 바로 뽑는 우리 반 자리 & 짝꿍</p>
+    </div>
+  </header>
+
+  <div class="toolbar">
+    <div class="countbox">총원 <b id="rosterCountDisplay">26</b>명</div>
+    <button class="chalk-btn primary" id="seatBtn">🎲 자리 뽑기</button>
+    <button class="chalk-btn" id="pairBtn">👥 짝 뽑기</button>
+    <button class="chalk-btn primary" id="allBtn">✨ 한번에 뽑기</button>
+    <button class="chalk-btn ghost settings-btn" id="settingsBtn">⚙️ 학생 명단 설정</button>
+  </div>
+
+  <section class="board">
+    <div class="board-title">
+      <h2 id="boardHeading">자리 배치</h2>
+      <div class="status" id="status">학생 26명 · 아직 뽑지 않았습니다.</div>
+    </div>
+    <div id="boardContent" class="seat-grid">
+      <div class="empty-board"><span class="doodle">✏️</span>위의 <b>자리 뽑기</b> 또는 <b>한번에 뽑기</b>를 눌러보세요.</div>
+    </div>
+  </section>
+</div>
+
+<div class="panel" id="settingsPanel">
+  <div class="modal">
+    <div class="modal-head"><h2>학생 명단 설정</h2><button class="close" id="closeSettings">닫기</button></div>
+    <p class="help">전학·전입 등으로 번호가 26을 넘거나 중간 번호가 비는 경우를 반영할 수 있어요. 번호를 추가·삭제하거나 연속된 범위로 한 번에 초기화할 수 있습니다. <b>저장하기</b>를 눌러야 반영됩니다.</p>
+
+    <div class="section-title">번호 범위로 초기화</div>
+    <div class="inline-form">
+      <input type="number" id="rangeStart" min="1" value="1">
+      <span class="sep">번 ~</span>
+      <input type="number" id="rangeEnd" min="1" value="26">
+      <span class="sep">번</span>
+      <button class="btn-neutral" id="applyRangeBtn">이 범위로 초기화</button>
+    </div>
+
+    <div class="section-title">번호 추가</div>
+    <div class="inline-form">
+      <input type="number" id="addNumInput" min="1" placeholder="번호">
+      <button class="btn-neutral" id="addNumBtn">+ 명단에 추가</button>
+    </div>
+
+    <div class="section-title">현재 명단</div>
+    <div class="roster-count" id="rosterCountHelp">총 0명</div>
+    <div class="student-list" id="studentList"></div>
+
+    <div class="modal-actions">
+      <button class="btn-neutral" id="cancelSettings">취소</button>
+      <div class="right">
+        <button class="btn-danger" id="clearAllBtn">전체 삭제</button>
+        <button class="btn-primary" id="saveSettings">저장하기</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const state = {
+  roster: Array.from({length:26},(_,i)=>i+1),
+  names: {},
+  seats: [],
+  pairs: []
+};
+const $ = id => document.getElementById(id);
+
+function sortedRoster(arr){ return [...new Set(arr.map(Number))].filter(n=>Number.isInteger(n)&&n>0).sort((a,b)=>a-b); }
+function shuffle(arr){
+  const a=[...arr];
+  for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; }
+  return a;
+}
+function escapeHtml(s){return String(s).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]));}
+function showToast(msg){
+  const t=$("toast"); t.textContent=msg; t.classList.add("show");
+  setTimeout(()=>t.classList.remove("show"),2200);
+}
+function wait(ms){ return new Promise(r=>setTimeout(r,ms)); }
+function refreshToolbarCount(){ $("rosterCountDisplay").textContent = state.roster.length; }
+function setControlsDisabled(disabled){
+  ["seatBtn","pairBtn","allBtn","settingsBtn"].forEach(id=>{ $(id).disabled = disabled; });
+}
+function randomFromRoster(){
+  if(state.roster.length===0) return "?";
+  return state.roster[Math.floor(Math.random()*state.roster.length)];
+}
+function spawnDust(el){
+  const rect = el.getBoundingClientRect();
+  for(let i=0;i<5;i++){
+    const d=document.createElement("span");
+    d.className="dust";
+    const dx=(Math.random()*50-25)+"px", dy=(-20-Math.random()*30)+"px";
+    d.style.setProperty("--dx",dx); d.style.setProperty("--dy",dy);
+    d.style.left=(rect.left+rect.width/2+window.scrollX)+"px";
+    d.style.top=(rect.top+rect.height/2+window.scrollY)+"px";
+    d.style.background=["var(--chalk)","var(--chalk-yellow)","var(--chalk-blue)"][i%3];
+    document.body.appendChild(d);
+    d.animate([{transform:"translate(0,0) scale(1)",opacity:.9},{transform:`translate(${dx},${dy}) scale(.2)`,opacity:0}],{duration:520,easing:"ease-out"});
+    setTimeout(()=>d.remove(),560);
+  }
+}
+
+/* ---------- 자리 뽑기 (플립 타일) ---------- */
+function buildSeatGrid(n){
+  const grid = $("boardContent");
+  grid.className = "seat-grid";
+  grid.innerHTML = "";
+  const tiles = [];
+  for(let i=0;i<n;i++){
+    const tile = document.createElement("div");
+    tile.className = "flip-tile";
+    tile.innerHTML = `<div class="flip-inner"><span class="flip-num">?</span></div><span class="flip-name"></span>`;
+    grid.appendChild(tile);
+    tiles.push(tile);
+  }
+  return tiles;
+}
+function flipTileTo(tile, finalNum, finalName, startDelay, spinMs){
+  return new Promise(resolve=>{
+    const numEl = tile.querySelector(".flip-num");
+    const nameEl = tile.querySelector(".flip-name");
+    setTimeout(()=>{
+      tile.classList.add("spinning");
+      const stepTime = 65;
+      const totalSteps = Math.max(4, Math.round(spinMs/stepTime));
+      let step = 0;
+      const iv = setInterval(()=>{
+        step++;
+        if(step>=totalSteps){
+          clearInterval(iv);
+          numEl.textContent = finalNum + "번";
+          if(finalName) nameEl.textContent = finalName;
+          tile.classList.remove("spinning");
+          tile.classList.add("settled");
+          spawnDust(tile);
+          setTimeout(()=>tile.classList.remove("settled"),450);
+          resolve();
+        } else {
+          numEl.textContent = randomFromRoster() + "번";
+        }
+      }, stepTime);
+    }, startDelay);
+  });
+}
+async function revealSeats(seatArr){
+  $("boardHeading").textContent = "자리 배치";
+  $("status").textContent = "번호를 뽑는 중...";
+  const tiles = buildSeatGrid(seatArr.length);
+  const jobs = seatArr.map((num,i)=>{
+    const name = (state.names[num]||"").trim();
+    return flipTileTo(tiles[i], num, name, i*55, 480+ (i%6)*40);
+  });
+  await Promise.all(jobs);
+  $("status").textContent = `학생 ${state.roster.length}명 · 자리 배치 완료`;
+}
+
+/* ---------- 짝 뽑기 (플립 타일 페어) ---------- */
+function buildPairGrid(pairs, oddOne){
+  const grid = $("boardContent");
+  grid.className = "pairs-grid";
+  grid.innerHTML = "";
+  const cells = [];
+  pairs.forEach(()=>{
+    const cell = document.createElement("div");
+    cell.className = "pair-tile";
+    cell.innerHTML = `
+      <div class="flip-tile"><div class="flip-inner"><span class="flip-num">?</span></div></div>
+      <span class="pair-link"></span>
+      <div class="flip-tile"><div class="flip-inner"><span class="flip-num">?</span></div></div>`;
+    grid.appendChild(cell);
+    cells.push(cell);
+  });
+  if(oddOne!=null){
+    const banner=document.createElement("div");
+    banner.className="odd-banner";
+    banner.textContent=`이번에는 ${oddOne}번 학생이 남습니다. 필요하면 3인 1조로 활용하세요.`;
+    grid.appendChild(banner);
+  }
+  return cells;
+}
+async function revealPairs(pairArr){
+  $("boardHeading").textContent = "짝 배정 결과";
+  $("status").textContent = "짝을 뽑는 중...";
+  const total = state.roster.length;
+  const oddOne = total%2 ? pairArr[pairArr.length-1][0] : null;
+  const fullPairs = oddOne!=null ? pairArr.slice(0,-1) : pairArr;
+  const cells = buildPairGrid(fullPairs, null);
+  const jobs = [];
+  fullPairs.forEach((p,i)=>{
+    const tiles = cells[i].querySelectorAll(".flip-tile");
+    const base = i*70;
+    jobs.push(
+      flipTileTo(tiles[0], p[0], "", base, 420+(i%5)*35).then(()=>
+        flipTileTo(tiles[1], p[1], "", 150, 380+(i%5)*35)
+      ).then(()=>{ cells[i].classList.add("linked"); })
+    );
+  });
+  await Promise.all(jobs);
+  if(oddOne!=null){
+    const banner=document.createElement("div");
+    banner.className="odd-banner";
+    banner.textContent=`이번에는 ${oddOne}번 학생이 남습니다. 필요하면 3인 1조로 활용하세요.`;
+    $("boardContent").appendChild(banner);
+  }
+  $("status").textContent = `학생 ${total}명 · ${fullPairs.length}쌍${oddOne!=null?" + 1명":""} 배정 완료`;
+}
+
+async function animateShuffle(kind){
+  if(state.roster.length===0){
+    showToast("먼저 학생 명단 설정에서 번호를 추가해 주세요.");
+    return;
+  }
+  setControlsDisabled(true);
+  if(kind==="seat"){
+    state.seats = shuffle(state.roster);
+    await revealSeats(state.seats);
+    showToast("🎲 자리 뽑기 완료!");
+  } else if(kind==="pair"){
+    const shuffled = shuffle(state.roster);
+    const pairs=[]; for(let i=0;i<shuffled.length;i+=2) pairs.push(shuffled.slice(i,i+2));
+    state.pairs = pairs;
+    await revealPairs(state.pairs);
+    showToast("👥 짝 뽑기 완료!");
+  } else if(kind==="all"){
+    state.seats = shuffle(state.roster);
+    await revealSeats(state.seats);
+    await wait(550);
+    const shuffled = shuffle(state.roster);
+    const pairs=[]; for(let i=0;i<shuffled.length;i+=2) pairs.push(shuffled.slice(i,i+2));
+    state.pairs = pairs;
+    await revealPairs(state.pairs);
+    showToast("✨ 자리와 짝 배정이 모두 완료되었습니다!");
+  }
+  setControlsDisabled(false);
+}
+
+/* ---------- 설정(명단 편집) 모달 ---------- */
+let draftRoster = [];
+let draftNames = {};
+
+function openSettings(){
+  draftRoster = sortedRoster(state.roster);
+  draftNames = {...state.names};
+  $("rangeStart").value = draftRoster[0] ?? 1;
+  $("rangeEnd").value = draftRoster[draftRoster.length-1] ?? draftRoster.length;
+  renderStudentList();
+  $("settingsPanel").classList.add("open");
+}
+function closeSettings(){ $("settingsPanel").classList.remove("open"); }
+
+function renderStudentList(){
+  const list=$("studentList"); list.innerHTML="";
+  $("rosterCountHelp").textContent = `총 ${draftRoster.length}명`;
+  if(draftRoster.length===0){
+    list.innerHTML = '<div class="help" style="padding:20px 0;text-align:center">명단이 비어 있습니다. 번호를 추가해 주세요.</div>';
+    return;
+  }
+  draftRoster.forEach(num=>{
+    const row=document.createElement("div"); row.className="edit-row";
+    row.innerHTML = `
+      <span class="num">${num}번</span>
+      <input maxlength="30" data-num="${num}" value="${escapeHtml(draftNames[num]||"")}" placeholder="이름 입력 (선택)">
+      <button class="row-del" data-del="${num}">삭제</button>`;
+    list.appendChild(row);
+  });
+  list.querySelectorAll("input[data-num]").forEach(inp=>{
+    inp.addEventListener("input", e=>{
+      draftNames[Number(e.target.dataset.num)] = e.target.value;
+    });
+  });
+  list.querySelectorAll("button[data-del]").forEach(btn=>{
+    btn.addEventListener("click", e=>{
+      const num = Number(e.target.dataset.del);
+      draftRoster = draftRoster.filter(n=>n!==num);
+      delete draftNames[num];
+      renderStudentList();
+    });
+  });
+}
+
+$("addNumBtn").onclick = ()=>{
+  const v = Number($("addNumInput").value);
+  if(!Number.isInteger(v) || v<=0){ showToast("올바른 번호를 입력해 주세요."); return; }
+  if(draftRoster.includes(v)){ showToast(`${v}번은 이미 명단에 있습니다.`); return; }
+  draftRoster = sortedRoster([...draftRoster, v]);
+  $("addNumInput").value = "";
+  renderStudentList();
+  showToast(`${v}번을 명단에 추가했습니다. (저장 필요)`);
+};
+
+$("applyRangeBtn").onclick = ()=>{
+  const s = Number($("rangeStart").value);
+  const e = Number($("rangeEnd").value);
+  if(!Number.isInteger(s) || !Number.isInteger(e) || s<=0 || e<s){ showToast("올바른 시작~끝 번호를 입력해 주세요."); return; }
+  if(e - s > 500){ showToast("범위가 너무 큽니다."); return; }
+  const ok = confirm(`${s}번부터 ${e}번까지로 명단을 초기화할까요?\n범위에 포함되지 않는 기존 번호는 명단에서 삭제됩니다.`);
+  if(!ok) return;
+  const newRoster = [];
+  for(let n=s;n<=e;n++) newRoster.push(n);
+  const newNames = {};
+  newRoster.forEach(n=>{ if(draftNames[n]) newNames[n]=draftNames[n]; });
+  draftRoster = newRoster;
+  draftNames = newNames;
+  renderStudentList();
+};
+
+$("clearAllBtn").onclick = ()=>{
+  if(draftRoster.length===0) return;
+  const ok = confirm("명단의 모든 번호를 삭제할까요?");
+  if(!ok) return;
+  draftRoster = [];
+  draftNames = {};
+  renderStudentList();
+};
+
+$("saveSettings").onclick = ()=>{
+  state.roster = sortedRoster(draftRoster);
+  state.names = {...draftNames};
+  state.seats = state.seats.filter(n=>state.roster.includes(n));
+  state.pairs = [];
+  refreshToolbarCount();
+  $("boardHeading").textContent="자리 배치";
+  $("boardContent").className = "seat-grid";
+  if(state.roster.length===0){
+    $("status").textContent = "학생 0명 · 명단이 비어 있습니다.";
+    $("boardContent").innerHTML = '<div class="empty-board"><span class="doodle">✏️</span>학생 명단 설정에서 번호를 추가해 주세요.</div>';
+  } else {
+    $("status").textContent = `학생 ${state.roster.length}명 · 명단이 변경되었습니다.`;
+    $("boardContent").innerHTML = '<div class="empty-board"><span class="doodle">✏️</span>위의 <b>자리 뽑기</b> 또는 <b>한번에 뽑기</b>를 눌러 다시 배정하세요.</div>';
+  }
+  closeSettings();
+  showToast("학생 명단이 저장되었습니다.");
+};
+
+$("cancelSettings").onclick = closeSettings;
+$("closeSettings").onclick = closeSettings;
+$("settingsPanel").addEventListener("click", e=>{ if(e.target===$("settingsPanel")) closeSettings(); });
+
+$("seatBtn").onclick=()=>animateShuffle("seat");
+$("pairBtn").onclick=()=>animateShuffle("pair");
+$("allBtn").onclick=()=>animateShuffle("all");
+$("settingsBtn").onclick=openSettings;
+
+refreshToolbarCount();
+</script>
+</body>
+</html>
